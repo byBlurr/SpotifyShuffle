@@ -12,7 +12,7 @@ namespace SpotifyShuffle
     /// </summary>
     class Program
     {
-        static void Main(string[] args)
+        private static void Main(string[] args)
         {
             Console.WriteLine("# Spotify Shuffle\nBecause Spotify likes to repeat songs on shuffle play...\n\n");
             new Program().AuthoriseAsync().GetAwaiter().GetResult();
@@ -27,10 +27,12 @@ namespace SpotifyShuffle
         /// </summary>
         private async Task AuthoriseAsync()
         {
+            // create the callback server on localhost:8888, start it and bind the ImplictGrantReceived event to the method
             server = new EmbedIOAuthServer(new Uri("http://localhost:8888/callback"), 8888);
             await server.Start();
             server.ImplictGrantReceived += OnImplicitGrantReceivedAsync;
 
+            // set up our request with the scopes etc, then open the browser for authorisation
             var request = new LoginRequest(server.BaseUri, CLIENT_ID, LoginRequest.ResponseType.Token)
             {
                 Scope = new List<string> { Scopes.PlaylistModifyPrivate, Scopes.PlaylistModifyPublic, Scopes.PlaylistReadPrivate, Scopes.PlaylistReadCollaborative }
@@ -45,45 +47,59 @@ namespace SpotifyShuffle
         /// </summary>
         private async Task OnImplicitGrantReceivedAsync(object sender, ImplictGrantResponse response)
         {
+            // stop the server and create a new client using the token, get the current users id
             await server.Stop();
             client = new SpotifyClient(response.AccessToken);
             string user = (await client.UserProfile.Current()).Id;
 
+            // make sure the users id isnt null/empty for some strange reason
             if (!String.IsNullOrEmpty(user) && !String.IsNullOrWhiteSpace(user))
             {
+                // get the current users playlists and make sure the list isnt null
                 Paging<SimplePlaylist> playlists = await client.Playlists.GetUsers(user);
-
                 if (playlists != null && playlists.Items != null)
                 {
+                    // list the playlists to the user
                     ListPlaylists(user, playlists);
 
                     try
                     {
-                        Console.WriteLine("\nEnter ID of playlist to shuffle: ");
+                        // ask the user which playlist we want to shuffle
+                        Console.Write("\nEnter ID of playlist to shuffle: ");
                         int playlistId = Convert.ToInt32(Console.ReadLine());
                         Console.Clear();
+
+                        // make sure the playlist id is valid
                         if (playlistId >= 0 && playlistId < playlists.Items.Count)
                         {
+                            // start the shuffle procedure and get the playlist uri
                             Log(LogType.Info, "Shuffle", "Shuffling, this may take a moment...");
-
                             string playlistUri = playlists.Items[playlistId].Uri.Split(':')[2];
+
+                            // create our empty lists ready to occupy
                             List<PlaylistTrack<IPlayableItem>> allTracks = new List<PlaylistTrack<IPlayableItem>>();
-                            List<PlaylistRemoveItemsRequest.Item> songs = new List<PlaylistRemoveItemsRequest.Item>();
-                            List<PlaylistRemoveItemsRequest.Item> songsToRemove = new List<PlaylistRemoveItemsRequest.Item>();
+                            List<Item> songs = new List<Item>();
+                            List<Item> songsToRemove = new List<Item>();
+
+                            // calculate how many loops of 100 to cycle through the whole playlist, most api calls are limited to 100 tracks
                             int loops = (int)playlists.Items[playlistId].Tracks.Total / 100;
                             int remainder = (int)playlists.Items[playlistId].Tracks.Total % 100;
 
+                            // get all the tracks from the playlist and populate the lists
                             await GetAllTracks(playlistUri, allTracks, loops);
                             int tracks = PopulateSongLists(allTracks, songs, songsToRemove);
 
+                            // recalculate the loops and remainder of the playlist, some of the tracks may have been invalid
                             loops = tracks / 100;
                             remainder = tracks % 100;
                             Log(LogType.Info, "Shuffle", $"Tracks: {tracks}, Loops: {loops}, Remainder: {remainder}");
 
+                            // do the actual shuffle
                             Log(LogType.Info, "Shuffle", "Shuffling the list...");
                             List<string> shuffled = Shuffle(songs);
                             if (shuffled.Count != songsToRemove.Count) throw new Exception($"For some reason there are not the same amount of songs in each list... Shuffled: {shuffled.Count}, Original: {songsToRemove.Count}");
 
+                            // remove the tracks from the playlist and then add the shuffled list back
                             await RemoveSongsFromPlaylist(playlistUri, songsToRemove, loops);
                             await Task.Delay(100);
                             await AddSongsToPlaylist(playlistUri, shuffled, loops);
@@ -110,8 +126,8 @@ namespace SpotifyShuffle
                 Log(LogType.Error, "Playlist", "Invalid playlist ID");
             }
 
-
-            Console.WriteLine("\n\nPress any key to exit...");
+            // exit the program, the api token is most likely dead soon anyway. maybe in the future, we just request a new token?
+            Console.Write("\n\nPress any key to exit...");
             Console.ReadKey();
             Environment.Exit(0);
         }
@@ -204,7 +220,7 @@ namespace SpotifyShuffle
         /// </summary>
         /// <param name="songs">List of songs to shuffle</param>
         /// <returns>List of strings representing the songs Uris</returns>
-        private List<string> Shuffle(List<PlaylistRemoveItemsRequest.Item> songs)
+        private List<string> Shuffle(List<Item> songs)
         {
             List<string> shuffled = new List<string>();
 
@@ -235,19 +251,23 @@ namespace SpotifyShuffle
                 {
                     if (songsToRemove.Count > 0)
                     {
-                        var removeRequest = new PlaylistRemoveItemsRequest();
-                        removeRequest.Tracks = songsToRemove;
+                        var removeRequest = new PlaylistRemoveItemsRequest
+                        {
+                            Tracks = songsToRemove
+                        };
                         await client.Playlists.RemoveItems(playlistUri, removeRequest);
                         Log(LogType.Info, "Shuffle", $"Removed {songsToRemove.Count} songs");
                     }
                 }
                 else
                 {
-                    List<PlaylistRemoveItemsRequest.Item> songsToRemoveThisLoop = songsToRemove.GetRange(0, 100);
+                    List<Item> songsToRemoveThisLoop = songsToRemove.GetRange(0, 100);
                     songsToRemove.RemoveRange(0, 100);
 
-                    var removeRequest = new PlaylistRemoveItemsRequest();
-                    removeRequest.Tracks = songsToRemoveThisLoop;
+                    var removeRequest = new PlaylistRemoveItemsRequest
+                    {
+                        Tracks = songsToRemoveThisLoop
+                    };
                     await client.Playlists.RemoveItems(playlistUri, removeRequest);
                     Log(LogType.Info, "Shuffle", "Removed 100 songs");
                 }
@@ -307,11 +327,11 @@ namespace SpotifyShuffle
                     Console.ForegroundColor = ConsoleColor.Yellow;
                     break;
                 case LogType.Info:
-                    Console.ForegroundColor = ConsoleColor.Gray;
+                    Console.ForegroundColor = ConsoleColor.Cyan;
                     break;
             }
 
-            Console.WriteLine($"{time} - [{logType.ToString(), 8}] {source, 15}: {message}");
+            Console.WriteLine($"{time,20} - [{logType,8}] {source,10}: {message}");
             Console.ResetColor();
         }
     }
