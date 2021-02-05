@@ -33,13 +33,21 @@ namespace SpotifyShuffle
             server.ImplictGrantReceived += OnImplicitGrantReceivedAsync;
 
             // set up our request with the scopes etc, then open the browser for authorisation
+            ObtainToken();
+
+            await Task.Delay(-1); // prevents the program from closing
+        }
+
+        /// <summary>
+        /// Obtain a new Spotify token
+        /// </summary>
+        private static void ObtainToken()
+        {
             var request = new LoginRequest(server.BaseUri, CLIENT_ID, LoginRequest.ResponseType.Token)
             {
                 Scope = new List<string> { Scopes.PlaylistModifyPrivate, Scopes.PlaylistModifyPublic, Scopes.PlaylistReadPrivate, Scopes.PlaylistReadCollaborative }
             };
             BrowserUtil.Open(request.ToUri());
-
-            await Task.Delay(-1); // prevents the program from closing
         }
 
         /// <summary>
@@ -127,17 +135,44 @@ namespace SpotifyShuffle
                         Log(LogType.Error, "Playlist", "No playlists found");
                     }
 
+                    // check how long left of token
                     int timeLeft = response.ExpiresIn - (int)(DateTime.UtcNow - response.CreatedAt).TotalSeconds;
+
+                    // if enough time remains, ask if they want to shuffle another playlist...
                     if (timeLeft > 60)
                     {
                         Console.Write($"\n\nTime left on token: {timeLeft} seconds");
                         Console.Write("\nWould you like to shuffle another playlist? Y/N ");
                         var key = Console.ReadKey();
-                        if (!key.Key.Equals(ConsoleKey.Y)) break;
+                        if (!key.Key.Equals(ConsoleKey.Y))
+                        {
+                            Log(LogType.Info, "Program", "Exitting program...");
+                            await Task.Delay(500);
+                            Environment.Exit(0);
+                        }
+                        else
+                        {
+                            await Task.Delay(500);
+                        }
                     }
-                    else break;
-
-                    await Task.Delay(500);
+                    else // else, ask if they want to obtain a new token
+                    {
+                        Console.Write("\n\nToken expired... Would you like to obtain a new token? Y/N ");
+                        var key = Console.ReadKey();
+                        if (!key.Key.Equals(ConsoleKey.Y))
+                        {
+                            Log(LogType.Info, "Program", "Exitting program...");
+                            await Task.Delay(500);
+                            Environment.Exit(0);
+                        }
+                        else
+                        {
+                            Log(LogType.Info, "Program", "Obtaining new token...");
+                            await server.Start();
+                            ObtainToken();
+                            return;
+                        }
+                    }
                 }
             }
             else
@@ -145,9 +180,7 @@ namespace SpotifyShuffle
                 Log(LogType.Error, "Playlist", "Invalid user id");
             }
 
-            // exit the program, the api token is most likely dead soon anyway. maybe in the future, we just request a new token?
-            Console.Write("\n\nPress any key to exit...");
-            Console.ReadKey();
+            // end the program if we make it to here...
             Environment.Exit(0);
         }
 
