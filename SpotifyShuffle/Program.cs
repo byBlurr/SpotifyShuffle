@@ -55,75 +55,94 @@ namespace SpotifyShuffle
             // make sure the users id isnt null/empty for some strange reason
             if (!String.IsNullOrEmpty(user) && !String.IsNullOrWhiteSpace(user))
             {
-                // get the current users playlists and make sure the list isnt null
-                Paging<SimplePlaylist> playlists = await client.Playlists.GetUsers(user);
-                if (playlists != null && playlists.Items != null)
+                while (true)
                 {
-                    // list the playlists to the user
-                    ListPlaylists(user, playlists);
-
-                    try
+                    // get the current users playlists and make sure the list isnt null
+                    Paging<SimplePlaylist> playlists = await client.Playlists.GetUsers(user);
+                    if (playlists != null && playlists.Items != null)
                     {
-                        // ask the user which playlist we want to shuffle
-                        Console.Write("\nEnter ID of playlist to shuffle: ");
-                        int playlistId = Convert.ToInt32(Console.ReadLine());
-                        Console.Clear();
+                        // list the playlists to the user
+                        ListPlaylists(user, playlists);
 
-                        // make sure the playlist id is valid
-                        if (playlistId >= 0 && playlistId < playlists.Items.Count)
+                        try
                         {
-                            // start the shuffle procedure and get the playlist uri
-                            Log(LogType.Info, "Shuffle", "Shuffling, this may take a moment...");
-                            string playlistUri = playlists.Items[playlistId].Uri.Split(':')[2];
+                            // ask the user which playlist we want to shuffle
+                            Console.Write("\nEnter ID of playlist to shuffle: ");
+                            int playlistId = Convert.ToInt32(Console.ReadLine());
+                            Console.Clear();
 
-                            // create our empty lists ready to occupy
-                            List<PlaylistTrack<IPlayableItem>> allTracks = new List<PlaylistTrack<IPlayableItem>>();
-                            List<Item> songs = new List<Item>();
-                            List<Item> songsToRemove = new List<Item>();
+                            // make sure the playlist id is valid
+                            if (playlistId >= 0 && playlistId < playlists.Items.Count)
+                            {
+                                // start the shuffle procedure and get the playlist uri
+                                Log(LogType.Info, "Shuffle", "Shuffling, this may take a moment...");
+                                string playlistUri = playlists.Items[playlistId].Uri.Split(':')[2];
 
-                            // calculate how many loops of 100 to cycle through the whole playlist, most api calls are limited to 100 tracks
-                            int loops = (int)playlists.Items[playlistId].Tracks.Total / 100;
-                            int remainder = (int)playlists.Items[playlistId].Tracks.Total % 100;
+                                // create our empty lists ready to occupy
+                                List<PlaylistTrack<IPlayableItem>> allTracks = new List<PlaylistTrack<IPlayableItem>>();
+                                List<Item> songs = new List<Item>();
+                                List<Item> songsToRemove = new List<Item>();
 
-                            // get all the tracks from the playlist and populate the lists
-                            await GetAllTracks(playlistUri, allTracks, loops);
-                            int tracks = PopulateSongLists(allTracks, songs, songsToRemove);
+                                // calculate how many loops of 100 to cycle through the whole playlist, most api calls are limited to 100 tracks
+                                int loops = (int)playlists.Items[playlistId].Tracks.Total / 100;
+                                int remainder = (int)playlists.Items[playlistId].Tracks.Total % 100;
 
-                            // recalculate the loops and remainder of the playlist, some of the tracks may have been invalid
-                            loops = tracks / 100;
-                            remainder = tracks % 100;
-                            Log(LogType.Info, "Shuffle", $"Tracks: {tracks}, Loops: {loops}, Remainder: {remainder}");
+                                // get all the tracks from the playlist and populate the lists
+                                await GetAllTracks(playlistUri, allTracks, loops);
+                                int tracks = PopulateSongLists(allTracks, songs, songsToRemove);
 
-                            // do the actual shuffle
-                            Log(LogType.Info, "Shuffle", "Shuffling the list...");
-                            List<string> shuffled = Shuffle(songs);
-                            if (shuffled.Count != songsToRemove.Count) throw new Exception($"For some reason there are not the same amount of songs in each list... Shuffled: {shuffled.Count}, Original: {songsToRemove.Count}");
+                                // recalculate the loops and remainder of the playlist, some of the tracks may have been invalid
+                                loops = tracks / 100;
+                                remainder = tracks % 100;
+                                Log(LogType.Info, "Shuffle", $"Tracks: {tracks}, Loops: {loops}, Remainder: {remainder}");
 
-                            // remove the tracks from the playlist and then add the shuffled list back
-                            await RemoveSongsFromPlaylist(playlistUri, songsToRemove, loops);
-                            await Task.Delay(100);
-                            await AddSongsToPlaylist(playlistUri, shuffled, loops);
+                                // do the actual shuffle
+                                Log(LogType.Info, "Shuffle", "Shuffling the list...");
+                                List<string> shuffled = Shuffle(songs);
+                                if (shuffled.Count != songsToRemove.Count) throw new Exception($"For some reason there are not the same amount of songs in each list... Shuffled: {shuffled.Count}, Original: {songsToRemove.Count}");
 
-                            Log(LogType.Info, "Shuffle", "Playlist shuffle complete.");
+                                // remove the tracks from the playlist and then add the shuffled list back
+                                await RemoveSongsFromPlaylist(playlistUri, songsToRemove, loops);
+                                await Task.Delay(100);
+                                await AddSongsToPlaylist(playlistUri, shuffled, loops);
+
+                                Log(LogType.Info, "Shuffle", "Playlist shuffle complete.");
+                            }
+                            else
+                            {
+                                Log(LogType.Error, "Playlist", "Invalid playlist ID");
+                            }
+                        }
+                        catch (APIException apiEx)
+                        {
+                            Log(LogType.Error, apiEx.Response.StatusCode.ToString(), apiEx.Message);
+                        }
+                        catch (Exception ex)
+                        {
+                            Log(LogType.Error, ex.Source, ex.Message);
                         }
                     }
-                    catch (APIException apiEx)
+                    else
                     {
-                        Log(LogType.Error, apiEx.Response.StatusCode.ToString(), apiEx.Message);
+                        Log(LogType.Error, "Playlist", "No playlists found");
                     }
-                    catch (Exception ex)
+
+                    int timeLeft = response.ExpiresIn - (int)(DateTime.UtcNow - response.CreatedAt).TotalSeconds;
+                    if (timeLeft > 60)
                     {
-                        Log(LogType.Error, ex.Source, ex.Message);
+                        Console.Write($"\n\nTime left on token: {timeLeft} seconds");
+                        Console.Write("\nWould you like to shuffle another playlist? Y/N ");
+                        var key = Console.ReadKey();
+                        if (!key.Key.Equals(ConsoleKey.Y)) break;
                     }
-                }
-                else
-                {
-                    Log(LogType.Error, "Playlist", "No playlists found");
+                    else break;
+
+                    await Task.Delay(500);
                 }
             }
             else
             {
-                Log(LogType.Error, "Playlist", "Invalid playlist ID");
+                Log(LogType.Error, "Playlist", "Invalid user id");
             }
 
             // exit the program, the api token is most likely dead soon anyway. maybe in the future, we just request a new token?
