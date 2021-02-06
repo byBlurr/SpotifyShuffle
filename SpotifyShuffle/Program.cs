@@ -83,7 +83,6 @@ namespace SpotifyShuffle
                             if (playlistId >= 0 && playlistId < playlists.Items.Count)
                             {
                                 // start the shuffle procedure and get the playlist uri
-                                Log(LogType.Info, "Shuffle", "Shuffling, this may take a moment...");
                                 string playlistUri = playlists.Items[playlistId].Uri.Split(':')[2];
 
                                 // create our empty lists ready to occupy
@@ -105,7 +104,6 @@ namespace SpotifyShuffle
                                 Log(LogType.Info, "Shuffle", $"Tracks: {tracks}, Loops: {loops}, Remainder: {remainder}");
 
                                 // do the actual shuffle
-                                Log(LogType.Info, "Shuffle", "Shuffling the list...");
                                 List<string> shuffled = Shuffle(songs);
                                 if (shuffled.Count != songsToRemove.Count) throw new Exception($"For some reason there are not the same amount of songs in each list... Shuffled: {shuffled.Count}, Original: {songsToRemove.Count}");
 
@@ -192,6 +190,7 @@ namespace SpotifyShuffle
         /// <param name="loops">How many loops are needed to complete the task</param>
         private async Task GetAllTracks(string playlistUri, List<PlaylistTrack<IPlayableItem>> allTracks, int loops)
         {
+            Log(LogType.Info, "Shuffle", "Gathering tracks from playlist...");
             for (int i = 0; i <= loops; i++)
             {
                 var toAdd = await client.Playlists.GetItems(playlistUri, new PlaylistGetItemsRequest() { Offset = i * 100 });
@@ -227,8 +226,8 @@ namespace SpotifyShuffle
         /// <returns></returns>
         private int PopulateSongLists(List<PlaylistTrack<IPlayableItem>> allTracks, List<Item> songs, List<Item> songsToRemove)
         {
+            Log(LogType.Info, "Shuffle", "Populating lists...");
             int tracks = 0;
-
             for (int i = allTracks.Count - 1; i >= 0; i--)
             {
                 PlaylistTrack<IPlayableItem> track = allTracks[i];
@@ -274,6 +273,7 @@ namespace SpotifyShuffle
         /// <returns>List of strings representing the songs Uris</returns>
         private List<string> Shuffle(List<Item> songs)
         {
+            Log(LogType.Info, "Shuffle", "Shuffling the list...");
             List<string> shuffled = new List<string>();
 
             Random rnd = new Random();
