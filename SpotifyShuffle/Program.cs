@@ -22,6 +22,9 @@ namespace SpotifyShuffle
         private static SpotifyClient client;
         private static EmbedIOAuthServer server;
 
+        private static int Tracks = 0;
+        private static int Locals = 0;
+
         /// <summary>
         /// Creates the server and handles the authorisation request
         /// </summary>
@@ -96,12 +99,12 @@ namespace SpotifyShuffle
 
                                 // get all the tracks from the playlist and populate the lists
                                 await GetAllTracks(playlistUri, allTracks, loops);
-                                int tracks = PopulateSongLists(allTracks, songs, songsToRemove);
+                                PopulateSongLists(allTracks, songs, songsToRemove);
 
                                 // recalculate the loops and remainder of the playlist, some of the tracks may have been invalid
-                                loops = tracks / 100;
-                                remainder = tracks % 100;
-                                Log(LogType.Info, "Shuffle", $"Tracks: {tracks}, Loops: {loops}, Remainder: {remainder}");
+                                loops = Tracks / 100;
+                                remainder = Tracks % 100;
+                                Log(LogType.Info, "Shuffle", $"Tracks: {Tracks}, Loops: {loops}, Remainder: {remainder}, Local tracks: {Locals}");
 
                                 // do the actual shuffle
                                 List<string> shuffled = Shuffle(songs);
@@ -111,6 +114,8 @@ namespace SpotifyShuffle
                                 await RemoveSongsFromPlaylist(playlistUri, songsToRemove, loops);
                                 await Task.Delay(100);
                                 await AddSongsToPlaylist(playlistUri, shuffled, loops);
+
+                                // TODO: Shuffle local tracks
 
                                 Log(LogType.Info, "Shuffle", "Playlist shuffle complete.");
                             }
@@ -224,10 +229,11 @@ namespace SpotifyShuffle
         /// <param name="songs">The playlists uri list</param>
         /// <param name="songsToRemove">The list of songs to remove</param>
         /// <returns></returns>
-        private int PopulateSongLists(List<PlaylistTrack<IPlayableItem>> allTracks, List<Item> songs, List<Item> songsToRemove)
+        private void PopulateSongLists(List<PlaylistTrack<IPlayableItem>> allTracks, List<Item> songs, List<Item> songsToRemove)
         {
             Log(LogType.Info, "Shuffle", "Populating lists...");
             int tracks = 0;
+            int locals = 0;
             for (int i = allTracks.Count - 1; i >= 0; i--)
             {
                 PlaylistTrack<IPlayableItem> track = allTracks[i];
@@ -257,13 +263,15 @@ namespace SpotifyShuffle
                     }
                     else
                     {
+                        locals++;
                         Log(LogType.Warning, "Shuffle", "Found a local song. Skipping...");
                     }
                 }
                 else Log(LogType.Warning, "Shuffle", "Found an unavailable song. Skipping...");
             }
 
-            return tracks;
+            Tracks = tracks;
+            Locals = locals;
         }
 
         /// <summary>
