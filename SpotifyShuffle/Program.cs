@@ -19,8 +19,8 @@ namespace SpotifyShuffle
         }
 
         private static readonly string CLIENT_ID = "9ffc2360c76f49cd8d7e0b2ac115a18f";
-        private static SpotifyClient client;
-        private static EmbedIOAuthServer server;
+        private static SpotifyClient Client;
+        private static EmbedIOAuthServer Server;
 
         private static int Tracks = 0;
         private static int Locals = 0;
@@ -31,9 +31,9 @@ namespace SpotifyShuffle
         private async Task AuthoriseAsync()
         {
             // create the callback server on localhost:8888, start it and bind the ImplictGrantReceived event to the method
-            server = new EmbedIOAuthServer(new Uri("http://localhost:8888/callback"), 8888);
-            await server.Start();
-            server.ImplictGrantReceived += OnImplicitGrantReceivedAsync;
+            Server = new EmbedIOAuthServer(new Uri("http://localhost:8888/callback"), 8888);
+            await Server.Start();
+            Server.ImplictGrantReceived += OnImplicitGrantReceivedAsync;
 
             // set up our request with the scopes etc, then open the browser for authorisation
             ObtainToken();
@@ -46,7 +46,7 @@ namespace SpotifyShuffle
         /// </summary>
         private static void ObtainToken()
         {
-            var request = new LoginRequest(server.BaseUri, CLIENT_ID, LoginRequest.ResponseType.Token)
+            var request = new LoginRequest(Server.BaseUri, CLIENT_ID, LoginRequest.ResponseType.Token)
             {
                 Scope = new List<string> { Scopes.PlaylistModifyPrivate, Scopes.PlaylistModifyPublic, Scopes.PlaylistReadPrivate, Scopes.PlaylistReadCollaborative }
             };
@@ -59,9 +59,9 @@ namespace SpotifyShuffle
         private async Task OnImplicitGrantReceivedAsync(object sender, ImplictGrantResponse response)
         {
             // stop the server and create a new client using the token, get the current users id
-            await server.Stop();
-            client = new SpotifyClient(response.AccessToken);
-            string user = (await client.UserProfile.Current()).Id;
+            await Server.Stop();
+            Client = new SpotifyClient(response.AccessToken);
+            string user = (await Client.UserProfile.Current()).Id;
 
             // make sure the users id isnt null/empty for some strange reason
             if (!String.IsNullOrEmpty(user) && !String.IsNullOrWhiteSpace(user))
@@ -69,7 +69,7 @@ namespace SpotifyShuffle
                 while (true)
                 {
                     // get the current users playlists and make sure the list isnt null
-                    Paging<SimplePlaylist> playlists = await client.Playlists.GetUsers(user);
+                    Paging<SimplePlaylist> playlists = await Client.Playlists.GetUsers(user);
                     if (playlists != null && playlists.Items != null)
                     {
                         // list the playlists to the user
@@ -173,7 +173,7 @@ namespace SpotifyShuffle
                         else
                         {
                             Log(LogType.Info, "Program", "Obtaining new token...");
-                            await server.Start();
+                            await Server.Start();
                             ObtainToken();
                             return;
                         }
@@ -200,7 +200,7 @@ namespace SpotifyShuffle
             Log(LogType.Info, "Shuffle", "Gathering tracks from playlist...");
             for (int i = 0; i <= loops; i++)
             {
-                var toAdd = await client.Playlists.GetItems(playlistUri, new PlaylistGetItemsRequest() { Offset = i * 100 });
+                var toAdd = await Client.Playlists.GetItems(playlistUri, new PlaylistGetItemsRequest() { Offset = i * 100 });
                 allTracks.AddRange(toAdd.Items);
             }
         }
@@ -317,7 +317,7 @@ namespace SpotifyShuffle
                         {
                             Tracks = songsToRemove
                         };
-                        await client.Playlists.RemoveItems(playlistUri, removeRequest);
+                        await Client.Playlists.RemoveItems(playlistUri, removeRequest);
                         Log(LogType.Info, "Shuffle", $"Removed {songsToRemove.Count} songs");
                     }
                 }
@@ -330,7 +330,7 @@ namespace SpotifyShuffle
                     {
                         Tracks = songsToRemoveThisLoop
                     };
-                    await client.Playlists.RemoveItems(playlistUri, removeRequest);
+                    await Client.Playlists.RemoveItems(playlistUri, removeRequest);
                     Log(LogType.Info, "Shuffle", "Removed 100 songs");
                 }
                 await Task.Delay(50);
@@ -353,7 +353,7 @@ namespace SpotifyShuffle
                     if (songsToAdd.Count > 0)
                     {
                         var addRequest = new PlaylistAddItemsRequest(songsToAdd);
-                        await client.Playlists.AddItems(playlistUri, addRequest);
+                        await Client.Playlists.AddItems(playlistUri, addRequest);
                         Log(LogType.Info, "Shuffle", $"Added back {songsToAdd.Count} songs");
                     }
                 }
@@ -363,7 +363,7 @@ namespace SpotifyShuffle
                     songsToAdd.RemoveRange(0, 100);
 
                     var addRequest = new PlaylistAddItemsRequest(songsToAddThisLoop);
-                    await client.Playlists.AddItems(playlistUri, addRequest);
+                    await Client.Playlists.AddItems(playlistUri, addRequest);
                     Log(LogType.Info, "Shuffle", "Added back 100 songs");
                 }
                 await Task.Delay(50);
@@ -381,7 +381,7 @@ namespace SpotifyShuffle
             for (int i = 0; i < Locals; i++)
             {
                 var reorderRequest = new PlaylistReorderItemsRequest(0, rnd.Next(1, (Tracks + Locals)));
-                await client.Playlists.ReorderItems(playlistUri, reorderRequest);
+                await Client.Playlists.ReorderItems(playlistUri, reorderRequest);
                 await Task.Delay(50);
             }
 
