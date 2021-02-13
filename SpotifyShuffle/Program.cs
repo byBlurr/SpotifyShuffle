@@ -98,7 +98,7 @@ namespace SpotifyShuffle
                                 int remainder = (int)playlists.Items[playlistId].Tracks.Total % 100;
 
                                 // get all the tracks from the playlist and populate the lists
-                                await GetAllTracks(playlistUri, allTracks, loops);
+                                await GetAllTracksAsync(playlistUri, allTracks, loops);
                                 PopulateSongLists(allTracks, songs, songsToRemove);
 
                                 // recalculate the loops and remainder of the playlist, some of the tracks may have been invalid
@@ -111,13 +111,13 @@ namespace SpotifyShuffle
                                 if (shuffled.Count != songsToRemove.Count) throw new Exception($"For some reason there are not the same amount of songs in each list... Shuffled: {shuffled.Count}, Original: {songsToRemove.Count}");
 
                                 // remove the tracks from the playlist and then add the shuffled list back
-                                await RemoveSongsFromPlaylist(playlistUri, songsToRemove, loops);
+                                await RemoveSongsFromPlaylistAsync(playlistUri, songsToRemove, loops);
                                 await Task.Delay(100);
-                                await AddSongsToPlaylist(playlistUri, shuffled, loops);
+                                await AddSongsToPlaylistAsync(playlistUri, shuffled, loops);
                                 await Task.Delay(100);
 
                                 // shuffle local tracks
-                                await ReorderSongs(playlistUri);
+                                await ReorderSongsAsync(playlistUri);
 
                                 Log(LogType.Success, "Shuffle", "Playlist shuffle complete.");
                             }
@@ -195,7 +195,7 @@ namespace SpotifyShuffle
         /// <param name="playlistUri">Playlist to retreive the songs from</param>
         /// <param name="allTracks">List to add the songs to</param>
         /// <param name="loops">How many loops are needed to complete the task</param>
-        private async Task GetAllTracks(string playlistUri, List<PlaylistTrack<IPlayableItem>> allTracks, int loops)
+        private async Task GetAllTracksAsync(string playlistUri, List<PlaylistTrack<IPlayableItem>> allTracks, int loops)
         {
             Log(LogType.Info, "Shuffle", "Gathering tracks from playlist...");
             for (int i = 0; i <= loops; i++)
@@ -304,7 +304,7 @@ namespace SpotifyShuffle
         /// <param name="playlistUri">The playlist to remove from</param>
         /// <param name="songsToRemove">The songs to remove</param>
         /// <param name="loops">How many loops of 100 this will take</param>
-        private async Task RemoveSongsFromPlaylist(string playlistUri, List<Item> songsToRemove, int loops)
+        private async Task RemoveSongsFromPlaylistAsync(string playlistUri, List<Item> songsToRemove, int loops)
         {
             Log(LogType.Info, "Shuffle", "Removing songs from playlist...");
             for (int i = 0; i <= loops; i++)
@@ -343,7 +343,7 @@ namespace SpotifyShuffle
         /// <param name="playlistUri">The playlist to add the songs to</param>
         /// <param name="songsToAdd">The songs to add</param>
         /// <param name="loops">How many loops of 100 this will take</param>
-        private async Task AddSongsToPlaylist(string playlistUri, List<string> songsToAdd, int loops)
+        private async Task AddSongsToPlaylistAsync(string playlistUri, List<string> songsToAdd, int loops)
         {
             Log(LogType.Info, "Shuffle", "Adding songs back in shuffled order...");
             for (int i = 0; i <= loops; i++)
@@ -374,7 +374,7 @@ namespace SpotifyShuffle
         /// Reorder the local songs, they should all be at the top of the playlist to begin with
         /// </summary>
         /// <param name="playlistUri">The playlist being shuffled</param>
-        private async Task ReorderSongs(string playlistUri)
+        private async Task ReorderSongsAsync(string playlistUri)
         {
             Log(LogType.Info, "Shuffle", "Manually shuffling local songs...");
             Random rnd = new Random();
