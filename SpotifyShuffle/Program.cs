@@ -114,10 +114,12 @@ namespace SpotifyShuffle
                                 await RemoveSongsFromPlaylist(playlistUri, songsToRemove, loops);
                                 await Task.Delay(100);
                                 await AddSongsToPlaylist(playlistUri, shuffled, loops);
+                                await Task.Delay(100);
 
-                                // TODO: Shuffle local tracks
+                                // shuffle local tracks
+                                await ReorderSongs(playlistUri);
 
-                                Log(LogType.Info, "Shuffle", "Playlist shuffle complete.");
+                                Log(LogType.Success, "Shuffle", "Playlist shuffle complete.");
                             }
                             else
                             {
@@ -369,6 +371,24 @@ namespace SpotifyShuffle
         }
 
         /// <summary>
+        /// Reorder the local songs, they should all be at the top of the playlist to begin with
+        /// </summary>
+        /// <param name="playlistUri">The playlist being shuffled</param>
+        private async Task ReorderSongs(string playlistUri)
+        {
+            Log(LogType.Info, "Shuffle", "Manually shuffling local songs...");
+            Random rnd = new Random();
+            for (int i = 0; i < Locals; i++)
+            {
+                var reorderRequest = new PlaylistReorderItemsRequest(0, rnd.Next(1, (Tracks + Locals)));
+                await client.Playlists.ReorderItems(playlistUri, reorderRequest);
+                await Task.Delay(50);
+            }
+
+            Log(LogType.Info, "Shuffle", $"Shuffled {Locals} local songs manually");
+        }
+
+        /// <summary>
         /// Create a console log
         /// </summary>
         /// <param name="logType">Type of console message</param>
@@ -389,6 +409,9 @@ namespace SpotifyShuffle
                 case LogType.Info:
                     Console.ForegroundColor = ConsoleColor.Cyan;
                     break;
+                case LogType.Success:
+                    Console.ForegroundColor = ConsoleColor.Green;
+                    break;
             }
 
             Console.WriteLine($"{time,20} - [{logType,8}] {source,10}: {message}");
@@ -401,6 +424,6 @@ namespace SpotifyShuffle
     /// </summary>
     public enum LogType
     {
-        Warning, Error, Info
+        Warning, Error, Info, Success
     }
 }
